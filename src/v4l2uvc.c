@@ -890,6 +890,10 @@ static int videoIn_frame_alloca(struct vdIn *vd, int format, int width, int heig
 			//  video processing disable control is checked (bayer processing).
 			//            (logitech cameras only)
 			framebuf_size = framesizeIn;
+                        if(sensorid == 0x00f5) {
+                          framebuf_size = width * height * 2 * 2; // display is 2-bytes.
+                          g_printf("\nLeopard Imaging Stereo. Set frame buf size to %d\n", framebuf_size);
+                        }
 			vd->framebuffer = g_new0(unsigned char, framebuf_size);
 			break;
 
@@ -1197,6 +1201,7 @@ static void bayer16_convert_dual_bayer8(int16_t *inbuf, uint8_t *outbuf, int wid
 	}
 }
 #else
+// convDualImage function in their C# code.
 void bayer16_convert_dual_bayer8(uint8_t* in_bytes, uint8_t* out_bytes, int width, int height)
 {
 	int i, j;
@@ -1212,14 +1217,43 @@ void bayer16_convert_dual_bayer8(uint8_t* in_bytes, uint8_t* out_bytes, int widt
 	{
 		for (j=0; j<width; j++)
 		{
-			*dstShortL++ = *srcShort++;
-			*dstShortR++ = *srcShort++;
+			*dstShortL++ = *srcShort++;  // odd
+			*dstShortR++ = *srcShort++;  // even pixel
 		}
-		dstShortL += width;
-		dstShortR += width;
+		dstShortL += width; // next line
+		dstShortR += width; // next line
 	}
 }
 #endif
+
+void raw_to_bmp_mono(uint8_t* in_bytes, uint8_t* out_bytes, int width, int height, int bpp)
+{
+  int i,j;
+  int shift = bpp - 8;
+  unsigned short tmp;
+  uint8_t *dst = out_bytes;
+  uint8_t *src = in_bytes;
+  uint16_t *srcWord = (uint16_t*)in_bytes;
+
+  if(bpp > 8) {
+    srcWord = (uint16_t*)in_bytes;
+    for (i=0;i<height;i++)
+      for (j=0;j<width;j++) {
+        tmp = (*srcWord++) >> shift;
+        *dst++ = (uint8_t)tmp;
+        *dst++ = (uint8_t)tmp;
+        *dst++ = (uint8_t)tmp;
+      }
+  } else {
+    for (i=0;i<height;i++)
+      for (j=0;j<width;j++) {
+        tmp = *src++;
+        *dst++ = (uint8_t)tmp;
+        *dst++ = (uint8_t)tmp;
+        *dst++ = (uint8_t)tmp;
+      }
+  }
+}
 
 /* decode video stream (frame buffer in yuyv format)
  * args:
@@ -1234,6 +1268,10 @@ static int frame_decode(struct vdIn *vd, int format, int width, int height)
 	int max_size = framesizeIn;
 
 	//printf("format = 0x%x\n", format);
+        if(sensorid == 0x00f5) { // leopard imaging.
+          //g_printf("\nLeopard Imaging Stereo. Set framesizeIn = %d", width*height*2*2);
+          framesizeIn = width*height*2*2;
+        }
 
 	switch (format)
 	{
@@ -1265,6 +1303,7 @@ static int frame_decode(struct vdIn *vd, int format, int width, int height)
 
 		case V4L2_PIX_FMT_JPEG:
 		case V4L2_PIX_FMT_MJPEG:
+                        g_printf("V4L2_PIX_FMT_MJPEG\n");
 			if(vd->buf.bytesused <= HEADERFRAME1)
 			{
 				// Prevent crash on empty image
@@ -1286,6 +1325,7 @@ static int frame_decode(struct vdIn *vd, int format, int width, int height)
 			 * check vd->buf.bytesused some drivers (or libusb)
 			 * seem to return a bigger value than the format requires
 			 */
+                        g_printf("V4L2_PIX_FMT_UYVY\n");
 			if(vd->buf.bytesused < max_size)
 				max_size = vd->buf.bytesused;
 			memcpy(vd->tmpbuffer, vd->mem[vd->buf.index], max_size);
@@ -1293,6 +1333,7 @@ static int frame_decode(struct vdIn *vd, int format, int width, int height)
 			break;
 
 		case V4L2_PIX_FMT_YVYU:
+                        g_printf("V4L2_PIX_FMT_YVYU\n");
 			/*
 			 * check vd->buf.bytesused some drivers (or libusb)
 			 * seem to return a bigger value than the format requires
@@ -1308,6 +1349,7 @@ static int frame_decode(struct vdIn *vd, int format, int width, int height)
 			 * check vd->buf.bytesused some drivers (or libusb)
 			 * seem to return a bigger value than the format requires
 			 */
+                        g_printf("V4L2_PIX_FMT_YYUV\n");
 			if(vd->buf.bytesused < max_size)
 				max_size = vd->buf.bytesused;
 			memcpy(vd->tmpbuffer, vd->mem[vd->buf.index], max_size);
@@ -1319,6 +1361,7 @@ static int frame_decode(struct vdIn *vd, int format, int width, int height)
 			 * check vd->buf.bytesused some drivers (or libusb)
 			 * seem to return a bigger value than the format requires
 			 */
+                        g_printf("V4L2_PIX_FMT_YUV420\n");
 			if(vd->buf.bytesused < max_size)
 				max_size = vd->buf.bytesused;
 			memcpy(vd->tmpbuffer, vd->mem[vd->buf.index], max_size);
@@ -1330,6 +1373,7 @@ static int frame_decode(struct vdIn *vd, int format, int width, int height)
 			 * check vd->buf.bytesused some drivers (or libusb)
 			 * seem to return a bigger value than the format requires
 			 */
+                        g_printf("V4L2_PIX_FMT_YVU420\n");
 			if(vd->buf.bytesused < max_size)
 				max_size = vd->buf.bytesused;
 			memcpy(vd->tmpbuffer, vd->mem[vd->buf.index], max_size);
@@ -1440,17 +1484,20 @@ static int frame_decode(struct vdIn *vd, int format, int width, int height)
 			break;
 
 		case V4L2_PIX_FMT_YUYV:
-//			if(vd->isbayer>0)
+                        // Intentionally ignore following if statement.
+			//if(vd->isbayer>0)
+                        //g_printf("V4L2_PIX_FMT_YUYV\n");
 			{
+                                // allocate frame buffer.
 				if (!(vd->tmpbuffer))
 				{
 					// rgb buffer for decoding bayer data
 					if(sensorid == 0x00f5)
 					{
 						vd->tmpbuffer = g_new0(unsigned char,
-							width * height * 3 * 2);
+							width * height * 3 * 2); // two side-by-side 24bit pics.
 						vd->tmpbuffer1 = g_new0(unsigned char,
-							width * height * 2 * 2);
+							width * height * 2 * 2); // two side-by-side 16bit pics.
 					}
 					else
 					{
@@ -1495,11 +1542,20 @@ static int frame_decode(struct vdIn *vd, int format, int width, int height)
 					bayer_to_rgb24 (vd->tmpbuffer1,vd->tmpbuffer, width, height, 3);
 					rgb2yuyv (vd->tmpbuffer,vd->framebuffer, width, height);
 				}
-				else if(sensorid == 0x00f5)  // stereo bayer
+				else if(sensorid == 0x00f5)  // stereo bayer, LEOPARD IMAGING STEREO VISION.
 				{
+                                        // ConvDualImage in C# code.
 					bayer16_convert_dual_bayer8(vd->mem[vd->buf.index], vd->tmpbuffer1, width, height);
-					bayer_to_rgb24 (vd->tmpbuffer1,vd->tmpbuffer, width*2, height, 0);
-					rgb2yuyv (vd->tmpbuffer,vd->framebuffer, width*2, height);
+					//bayer_to_rgb24 (vd->tmpbuffer1,vd->tmpbuffer, width*2, height, 0);
+                                        raw_to_bmp_mono(vd->tmpbuffer1,vd->tmpbuffer, width*2, height, 8);
+                                        //store_picture(vd->tmpbuffer);
+
+                                        // Success.
+                                        //SaveBuff("test.raw", 3*width*2*height, vd->tmpbuffer);
+
+                                        //memcpy(vd->framebuffer, vd->tmpbuffer1, width*height*2*2);
+					rgb2yuyv (vd->tmpbuffer, vd->framebuffer, width*2, height);
+                                        //g_print("%d w:%d, h:%d\n", framesizeIn, width, height);
 				}
 				else if(sensorid == 0x00f8)  // M031 bayer right shift 4
 				{
@@ -1509,6 +1565,7 @@ static int frame_decode(struct vdIn *vd, int format, int width, int height)
 				}
 				else
 				{
+                                        g_printf("else encode\n");
 					bayer16_convert_bayer8(vd->mem[vd->buf.index], vd->tmpbuffer1, width, height, 2);
 					bayer_to_rgb24 (vd->tmpbuffer1,vd->tmpbuffer, width, height, 0);
 					rgb2yuyv (vd->tmpbuffer,vd->framebuffer, width, height);
@@ -1772,6 +1829,7 @@ int uvcGrab(struct vdIn *vd, struct GLOBAL *global, int format, int width, int h
 	}
 
 	vd->frame_index++;
+        //g_printf("%d vd->buf.bytesused = %d\n", vd->frame_index - 1, vd->buf.bytesused);
 
 	//char test_filename[20];
 	//snprintf(test_filename, 20, "rawframe-%u.raw", vd->frame_index);

@@ -137,6 +137,7 @@ static SDL_Overlay * video_init(void *data, SDL_Surface **pscreen)
 
     if(sensorid == 0x00f5)
     {
+        g_print("!! Leopard stereo cam detected! ");
     	width = width * 2; // for leopard stereo camera
     }
 
