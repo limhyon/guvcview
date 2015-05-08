@@ -1,0 +1,26 @@
+[encoding: UTF-8]
+
+data/guvcview.desktop.in.in
+src/acodecs.c
+src/audio_tab.c
+src/callbacks.c
+src/close.c
+src/create_video.c
+src/globals.c
+src/guvcview.c
+src/img_controls.c
+src/image_format.c
+src/menubar.c
+src/options.c
+src/osd.c
+src/timers.c
+src/v4l2_controls.c
+src/v4l2_devices.c
+src/v4l2_dyna_ctrls.c
+src/v4l2_formats.c
+src/v4l2uvc.c
+src/vcodecs.c
+src/video.c
+src/video_format.c
+src/video_tab.c
+src/uvc_h264.c
